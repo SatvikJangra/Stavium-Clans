@@ -87,8 +87,20 @@ function applyMix() {
   nightBus.gain.setTargetAtTime(dark, now, 0.6);
 }
 
+// iPhone: Web Audio is silenced by the ringer switch unless the page plays as "media"; a looping silent <audio>
+// (and navigator.audioSession on iOS 17+) moves it to the playback category. Unlock must happen inside a real tap.
+let silentEl: HTMLAudioElement | null = null;
+const SILENT = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+function unlockIOS() {
+  try { const n = navigator as unknown as {audioSession?: {type: string}}; if (n.audioSession) n.audioSession.type = 'playback'; } catch { /* old browsers */ }
+  if (!silentEl) { silentEl = document.createElement('audio'); silentEl.src = SILENT; silentEl.loop = true; silentEl.setAttribute('playsinline', ''); silentEl.preload = 'auto'; }
+  silentEl.play().catch(() => {});
+  if (ctx) { const b = ctx.createBuffer(1, 1, 22050), src = ctx.createBufferSource(); src.buffer = b; src.connect(ctx.destination); src.start(0); }
+}
+export function audioRunning() { return !!ctx && ctx.state === 'running'; }
+
 export function startAudio() {
-  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+  if (ctx) { unlockIOS(); if (ctx.state !== 'running') ctx.resume(); return; }
   const AC = window.AudioContext || (window as unknown as {webkitAudioContext: typeof AudioContext}).webkitAudioContext; if (!AC) return;
   ctx = new AC();
   master = ctx.createGain(); master.gain.value = 0;
@@ -96,9 +108,10 @@ export function startAudio() {
   music = ctx.createGain(); nightBus = ctx.createGain(); sfx = ctx.createGain(); nightBus.gain.value = 0; sfx.gain.value = 0.8;
   music.connect(master); nightBus.connect(master); sfx.connect(master);
   noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  unlockIOS(); ctx.resume();
   nextT = ctx.currentTime + 0.1; applyMix();
   setInterval(schedule, 40);
-  document.addEventListener('visibilitychange', () => { if (!ctx) return; if (document.hidden) ctx.suspend(); else ctx.resume(); });
+  document.addEventListener('visibilitychange', () => { if (!ctx) return; if (document.hidden) { ctx.suspend(); silentEl?.pause(); } else { ctx.resume(); silentEl?.play().catch(() => {}); } });
 }
 export function setDark(k: number) { dark = k; applyMix(); }
 export function isMuted() { return muted; }

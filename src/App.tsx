@@ -4,7 +4,7 @@ import {Canvas, useFrame, useThree} from '@react-three/fiber';
 import {MapControls, Html} from '@react-three/drei';
 import {meshVillage} from './mesher';
 import {Cast, Beam, NightSky, night, Actors} from './Actors';
-import {startAudio, setDark as audioDark, toggleMute, isMuted, onMute, pop, whoosh} from './audio';
+import {startAudio, audioRunning, setDark as audioDark, toggleMute, isMuted, onMute, pop, whoosh} from './audio';
 
 // Stavium Follower Forest, the website: the same village as the reels, view-only.
 // Data comes from public/village.json (exported from the reel project with `npm run export`).
@@ -189,7 +189,14 @@ export const App: React.FC = () => {
   useEffect(() => { const u = new URLSearchParams(location.search).get('u'); if (u && v) { const h = v.homes.find((x) => x.name.toLowerCase() === u.toLowerCase()); if (h) setTimeout(() => goTo(h), 600); } }, [v]);
   const village = v;
   const [mute, setMute] = useState(isMuted());
-  useEffect(() => { const go = () => startAudio(); window.addEventListener('pointerdown', go, {once: true}); window.addEventListener('keydown', go, {once: true}); return onMute(setMute); }, []);
+  useEffect(() => {
+    // keep trying on every real tap until the browser actually lets sound run (iPhone needs touchend/click, not pointerdown)
+    const EV = ['touchend', 'click', 'pointerup', 'keydown'];
+    const go = () => { startAudio(); if (audioRunning()) EV.forEach((e) => window.removeEventListener(e, go, true)); };
+    EV.forEach((e) => window.addEventListener(e, go, true));
+    const off = onMute(setMute);
+    return () => { EV.forEach((e) => window.removeEventListener(e, go, true)); off(); };
+  }, []);
   return (
     <div style={{position: 'fixed', inset: 0}}>
       <Canvas dpr={lite ? [1, 1.25] : [1, 1.5]} gl={{antialias: !lite, powerPreference: 'high-performance'}} camera={{position: [110, 120, 150], fov: 50, near: 0.5, far: 1400}}
