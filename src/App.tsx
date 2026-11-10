@@ -212,7 +212,7 @@ export const App: React.FC = () => {
       </Canvas>
 
       {/* top bar */}
-      <div style={{position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, pointerEvents: 'none'}}>
+      <div style={{position: 'absolute', top: 12, left: 12, right: 12, zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, pointerEvents: 'none'}}>
         <div style={{pointerEvents: 'auto', background: 'rgba(15,20,30,0.78)', color: '#fff', borderRadius: 18, padding: '10px 16px', textAlign: 'center', backdropFilter: 'blur(6px)'}}>
           <div style={{fontWeight: 900, fontSize: 18, letterSpacing: 0.3}}>🏡 Stavium Follower Forest</div>
           <div style={{fontSize: 13, opacity: 0.85, marginTop: 2}}>Day {v?.day ?? '…'} · {homes.length} ghar · har follower ka ek ghar</div>
@@ -235,31 +235,31 @@ export const App: React.FC = () => {
       </div>
 
       {/* selected house card */}
-      {selected && <div style={{position: 'absolute', bottom: 16, left: 12, right: 12, display: 'flex', justifyContent: 'center'}}>
+      {selected && <div style={{position: 'absolute', bottom: 16, left: 12, right: 12, display: 'flex', justifyContent: 'center', zIndex: 200}}>
         <div style={{width: 'min(440px, 100%)', background: 'rgba(15,20,30,0.85)', color: '#fff', borderRadius: 18, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, backdropFilter: 'blur(6px)'}}>
           <div style={{fontSize: 34}}>{selected.special ? '⭐' : '🏠'}</div>
-          <div style={{flex: 1}}>
-            <div style={{fontWeight: 900, fontSize: 17}}>@{selected.name} ka ghar</div>
-            <div style={{fontSize: 13, opacity: 0.8}}>Day {selected.day} pe bana{selected.special ? ' · ' + selected.special : ''}</div>
+          <div style={{flex: 1, minWidth: 0}}>
+            <div style={{fontWeight: 900, fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>@{selected.name} ka ghar</div>
+            <div style={{fontSize: 13, opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>Day {selected.day} pe bana{selected.special ? ' · ' + selected.special : ''}</div>
           </div>
           <button onClick={() => { if (navigator.share) navigator.share({title: 'Mera ghar', url: location.origin + '/?u=' + selected.name}).catch(() => {}); else navigator.clipboard?.writeText(location.origin + '/?u=' + selected.name); }}
             style={{fontWeight: 800, fontSize: 14, padding: '10px 12px', borderRadius: 12, border: 'none', background: '#ffd23d', color: '#2a1a00', cursor: 'pointer'}}>Share</button>
         </div>
       </div>}
 
-      {!selected && <a href={IG} target="_blank" rel="noreferrer" style={{position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', textDecoration: 'none',
+      {!selected && <a href={IG} target="_blank" rel="noreferrer" style={{position: 'absolute', zIndex: 200, bottom: 16, left: '50%', transform: 'translateX(-50%)', textDecoration: 'none',
         background: 'linear-gradient(90deg,#f58529,#dd2a7b,#8134af)', color: '#fff', fontWeight: 800, padding: '12px 20px', borderRadius: 30, boxShadow: '0 6px 20px rgba(0,0,0,0.25)', whiteSpace: 'nowrap'}}>
         Follow @stavium.ai → apna ghar banwao</a>}
       {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(30 + 40, 46, -222 + 95), target: new THREE.Vector3(30, 22, -222), t0: t}); }}
-        style={{position: 'absolute', right: 12, bottom: selected ? 110 : 80, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
+        style={{position: 'absolute', right: 12, bottom: selected ? 104 : 80, zIndex: 200, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
           background: 'rgba(15,20,30,0.8)', color: '#ffd23d'}}>🏰 Kila</button>}
       {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(110, 120, 150), target: new THREE.Vector3(0, 0, 0), t0: t}); }}
-        style={{position: 'absolute', left: 12, bottom: selected ? 110 : 80, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
+        style={{position: 'absolute', left: 12, bottom: selected ? 104 : 80, zIndex: 200, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
           background: 'rgba(15,20,30,0.8)', color: '#fff'}}>🏡 Gaon</button>}
       {dark > 0.6 && <div style={{position: 'absolute', top: '42%', width: '100%', textAlign: 'center', pointerEvents: 'none', color: '#ffd9a0', fontWeight: 900, fontSize: 18,
         textShadow: '0 2px 10px #000', opacity: Math.min(1, (dark - 0.6) * 3)}}>🔒 Andar kya hai… jaldi pata chalega</div>}
       <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} aria-label={mute ? 'Sound on' : 'Sound off'}
-        style={{position: 'absolute', right: 12, bottom: selected ? 160 : 130, width: 44, height: 44, borderRadius: 22, border: 'none', cursor: 'pointer', fontSize: 20, background: 'rgba(15,20,30,0.78)', color: '#fff'}}>{mute ? '🔇' : '🔊'}</button>
+        style={{position: 'absolute', right: 12, bottom: selected ? 154 : 130, zIndex: 200, width: 44, height: 44, borderRadius: 22, border: 'none', cursor: 'pointer', fontSize: 20, background: 'rgba(15,20,30,0.78)', color: '#fff'}}>{mute ? '🔇' : '🔊'}</button>
       {!v && <div style={{position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontWeight: 800, color: '#2a4a60'}}>Gaon load ho raha hai… 🌲</div>}
     </div>
   );
