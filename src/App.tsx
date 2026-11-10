@@ -3,17 +3,20 @@ import * as THREE from 'three';
 import {Canvas, useFrame, useThree} from '@react-three/fiber';
 import {MapControls, Html} from '@react-three/drei';
 import {meshVillage} from './mesher';
+import {Cast, Beam, NightSky, night, Actors} from './Actors';
+import {startAudio, setDark as audioDark, toggleMute, isMuted, onMute, pop, whoosh} from './audio';
 
 // Stavium Follower Forest, the website: the same village as the reels, view-only.
 // Data comes from public/village.json (exported from the reel project with `npm run export`).
 
 type Home = {name: string; day: number; p: [number, number, number]; special?: string};
-type Village = {updated: string; day: number; blocks: Record<string, number[]>; homes: Home[]; palace: number[]; castle: number[]; radius: number};
+type Village = {updated: string; day: number; blocks: Record<string, number[]>; homes: Home[]; actors?: Actors; palace: number[]; castle: number[]; radius: number};
 
 const WATER = new Set(['#4fb3e3', '#6fc8f5']);
 const GLOW = new Set(['#ffd77a']);
 const SEE = new Set(['#6fc8f5', '#e8f6ff', '#bfe8ff']);
 const IG = 'https://www.instagram.com/stavium.ai/';
+const DBG = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('dbg') ?? '' : '';
 const lite = typeof window !== 'undefined' && (window.innerWidth < 700 || /lite=1/.test(location.search));
 
 function noiseTexture(water: boolean) {
@@ -51,6 +54,7 @@ const Blocks: React.FC<{color: string; flat: number[]}> = ({color, flat}) => {
 const MAT_SOLID = new THREE.MeshLambertMaterial({vertexColors: true});
 const MAT_GLOW = new THREE.MeshBasicMaterial({vertexColors: true});
 const MAT_CLEAR = new THREE.MeshLambertMaterial({vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false});
+const MAT_GHOST = new THREE.MeshBasicMaterial({color: '#dff4ff', transparent: true, opacity: 0.18, depthWrite: false});
 const MAT_WATER = new THREE.MeshLambertMaterial({vertexColors: true, emissive: new THREE.Color('#1d6f9a'), emissiveIntensity: 0.3});
 const LAKE = new THREE.MeshLambertMaterial({color: '#3d9fd6', emissive: new THREE.Color('#1d6f9a'), emissiveIntensity: 0.3});
 const CASTLE_AT = new THREE.Vector2(30, -222);
@@ -58,7 +62,7 @@ const VillageMesh: React.FC<{v: Village}> = ({v}) => {
   const m = useMemo(() => meshVillage(v.blocks), [v]);
   useEffect(() => { console.log('faces', m.faces, 'meshes', m.meshes.length); }, [m]);
   useFrame(({clock}) => { const w = 0.28 + Math.sin(clock.elapsedTime * 2) * 0.07; MAT_WATER.emissiveIntensity = w; LAKE.emissiveIntensity = w; });
-  return <>{m.meshes.map((x, i) => <mesh key={i} geometry={x.geo} material={x.kind === 'glow' ? MAT_GLOW : x.kind === 'clear' ? MAT_CLEAR : x.kind === 'water' ? MAT_WATER : MAT_SOLID} renderOrder={x.kind === 'clear' ? 1 : 0} />)}</>;
+  return <>{m.meshes.map((x, i) => <mesh key={i} geometry={x.geo} material={x.kind === 'ghost' ? MAT_GHOST : x.kind === 'glow' ? MAT_GLOW : x.kind === 'clear' ? MAT_CLEAR : x.kind === 'water' ? MAT_WATER : MAT_SOLID} renderOrder={x.kind === 'clear' || x.kind === 'ghost' ? 1 : 0} />)}</>;
 };
 
 const Clouds: React.FC = () => {
@@ -67,7 +71,7 @@ const Clouds: React.FC = () => {
     const a = (k / 14) * Math.PI * 2, r = 120 + (k % 3) * 25;
     return {x: Math.cos(a) * r, y: 34 + (k % 4) * 6, z: Math.sin(a) * r, s: 5 + (k % 3) * 2};
   }), []);
-  useFrame(({clock}) => { if (g.current) g.current.rotation.y = clock.elapsedTime * 0.01; });
+  useFrame(({clock}) => { if (g.current) { g.current.rotation.y = clock.elapsedTime * 0.01; g.current.visible = night.v < 0.4; } });
   return <group ref={g}>{puffs.map((p, i) => (
     <group key={i} position={[p.x, p.y, p.z]}>
       {[[0, 0, 0, 1], [p.s * 0.9, -1, 1, 0.75], [-p.s * 0.9, -1, -1, 0.7], [p.s * 0.3, 1.2, -1, 0.7]].map(([x, y, z, k], j) =>
@@ -92,7 +96,8 @@ const DayNight: React.FC<{controls: React.RefObject<any>; hemi: React.RefObject<
     if (scene.fog) (scene.fog as THREE.Fog).color.copy(DAY.fog).lerp(NIGHT.fog, e);
     if (hemi.current) hemi.current.intensity = DAY.hemi + (NIGHT.hemi - DAY.hemi) * e;
     if (sun.current) sun.current.intensity = DAY.sun + (NIGHT.sun - DAY.sun) * e;
-    if (Math.abs(e - last.current) > 0.02) { last.current = e; onDark(e); }
+    night.v = e;
+    if (Math.abs(e - last.current) > 0.02) { last.current = e; onDark(e); audioDark(e); }
   });
   return null;
 };
@@ -171,7 +176,7 @@ export const App: React.FC = () => {
     return s.length < 2 ? [] : homes.filter((h) => h.name.toLowerCase().includes(s)).slice(0, 6);
   }, [q, homes]);
   const goTo = (h: Home) => {
-    setSel(h.name); setQ(h.name); setNotFound(false);
+    setSel(h.name); setQ(h.name); setNotFound(false); pop(); whoosh();
     const t = clockRef.current?.elapsedTime ?? 0;
     setFly({pos: new THREE.Vector3(h.p[0] + 18, h.p[1] + 16, h.p[2] + 26), target: new THREE.Vector3(h.p[0], h.p[1] - 5, h.p[2]), t0: t});
   };
@@ -183,6 +188,8 @@ export const App: React.FC = () => {
   // deep link: site.com/?u=username flies straight to that house
   useEffect(() => { const u = new URLSearchParams(location.search).get('u'); if (u && v) { const h = v.homes.find((x) => x.name.toLowerCase() === u.toLowerCase()); if (h) setTimeout(() => goTo(h), 600); } }, [v]);
   const village = v;
+  const [mute, setMute] = useState(isMuted());
+  useEffect(() => { const go = () => startAudio(); window.addEventListener('pointerdown', go, {once: true}); window.addEventListener('keydown', go, {once: true}); return onMute(setMute); }, []);
   return (
     <div style={{position: 'fixed', inset: 0}}>
       <Canvas dpr={lite ? [1, 1.25] : [1, 1.5]} gl={{antialias: !lite, powerPreference: 'high-performance'}} camera={{position: [110, 120, 150], fov: 50, near: 0.5, far: 1400}}
@@ -190,12 +197,15 @@ export const App: React.FC = () => {
         <fog attach="fog" args={['#cfe8f7', 220, 560]} />
         <hemisphereLight ref={hemi} args={['#ffffff', '#8aa070', 1.25]} />
         <directionalLight ref={sun} position={[-80, 140, 60]} intensity={0.9} color="#fff1dc" />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.9, 0]}><circleGeometry args={[1400, 48]} /><meshLambertMaterial color="#6bb444" /></mesh>
+        {/* open meadow outside the village; inside, the voxel ground itself (so kartik's underground room shows through its glass) */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.45, 0]}><ringGeometry args={[(v?.radius ?? 150) - 0.5, 1400, 96]} /><meshLambertMaterial color="#6bb444" /></mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -6, 0]}><circleGeometry args={[(v?.radius ?? 150) + 2, 64]} /><meshLambertMaterial color="#3f7a2a" /></mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[28, 1.52, 17]} scale={[1.2, 1, 1]} material={LAKE}><circleGeometry args={[7.2, 40]} /></mesh>
         <DayNight controls={controls} hemi={hemi} sun={sun} onDark={setDark} />
-        {village && <VillageMesh v={village} />}
+        {village && !DBG.includes('v') && <VillageMesh v={village} />}
         <Clouds />
-        {v && <Tags homes={homes} selected={sel} onPick={goTo} controls={controls} />}
+        {v?.actors && !DBG.includes('a') && <><Cast a={v.actors} /><Beam p={v.actors.beam} /><NightSky castle={[30, 0, -222]} /></>}
+        {v && !DBG.includes('t') && <Tags homes={homes} selected={sel} onPick={goTo} controls={controls} />}
         <Marker home={selected} />
         <MapControls ref={controls} target={[0, 0, 0]} enableDamping dampingFactor={0.08} minDistance={14} maxDistance={420} maxPolarAngle={Math.PI / 2.25} screenSpacePanning={false} />
         <CameraFlight fly={fly} controls={controls} />
@@ -240,14 +250,16 @@ export const App: React.FC = () => {
       {!selected && <a href={IG} target="_blank" rel="noreferrer" style={{position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', textDecoration: 'none',
         background: 'linear-gradient(90deg,#f58529,#dd2a7b,#8134af)', color: '#fff', fontWeight: 800, padding: '12px 20px', borderRadius: 30, boxShadow: '0 6px 20px rgba(0,0,0,0.25)', whiteSpace: 'nowrap'}}>
         Follow @stavium.ai → apna ghar banwao</a>}
-      {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setFly({pos: new THREE.Vector3(30 + 40, 46, -222 + 95), target: new THREE.Vector3(30, 22, -222), t0: t}); }}
+      {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(30 + 40, 46, -222 + 95), target: new THREE.Vector3(30, 22, -222), t0: t}); }}
         style={{position: 'absolute', right: 12, bottom: selected ? 110 : 80, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
           background: 'rgba(15,20,30,0.8)', color: '#ffd23d'}}>🏰 Kila</button>}
-      {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setFly({pos: new THREE.Vector3(110, 120, 150), target: new THREE.Vector3(0, 0, 0), t0: t}); }}
+      {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(110, 120, 150), target: new THREE.Vector3(0, 0, 0), t0: t}); }}
         style={{position: 'absolute', left: 12, bottom: selected ? 110 : 80, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
           background: 'rgba(15,20,30,0.8)', color: '#fff'}}>🏡 Gaon</button>}
       {dark > 0.6 && <div style={{position: 'absolute', top: '42%', width: '100%', textAlign: 'center', pointerEvents: 'none', color: '#ffd9a0', fontWeight: 900, fontSize: 18,
         textShadow: '0 2px 10px #000', opacity: Math.min(1, (dark - 0.6) * 3)}}>🔒 Andar kya hai… jaldi pata chalega</div>}
+      <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} aria-label={mute ? 'Sound on' : 'Sound off'}
+        style={{position: 'absolute', right: 12, bottom: selected ? 160 : 130, width: 44, height: 44, borderRadius: 22, border: 'none', cursor: 'pointer', fontSize: 20, background: 'rgba(15,20,30,0.78)', color: '#fff'}}>{mute ? '🔇' : '🔊'}</button>
       {!v && <div style={{position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontWeight: 800, color: '#2a4a60'}}>Gaon load ho raha hai… 🌲</div>}
     </div>
   );

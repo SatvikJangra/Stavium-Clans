@@ -17,7 +17,7 @@ const FACES: {n: [number, number, number]; shade: number; corners: [number, numb
   {n: [0, 0, -1], shade: 0.66, corners: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]]},
 ];
 
-type Kind = 'solid' | 'clear' | 'glow' | 'water';
+type Kind = 'solid' | 'clear' | 'ghost' | 'glow' | 'water';
 type Buf = {pos: number[]; col: number[]; nor: number[]; idx: number[]};
 
 export function meshVillage(blocks: Record<string, number[]>) {
@@ -32,7 +32,7 @@ export function meshVillage(blocks: Record<string, number[]>) {
   const col = new THREE.Color();
   let faces = 0;
   for (const [c, f] of Object.entries(blocks)) {
-    const kind: Kind = TRANSPARENT.has(c) ? 'clear' : WATER.has(c) ? 'water' : GLOW.has(c) ? 'glow' : 'solid';
+    const kind: Kind = c === '#bfe8ff' ? 'ghost' : TRANSPARENT.has(c) ? 'clear' : WATER.has(c) ? 'water' : GLOW.has(c) ? 'glow' : 'solid';
     const base = new THREE.Color(c);
     for (let i = 0; i < f.length; i += 3) {
       const x = f[i], y = f[i + 1], z = f[i + 2];
@@ -40,8 +40,9 @@ export function meshVillage(blocks: Record<string, number[]>) {
       let b = bufs.get(ck); if (!b) { b = {pos: [], col: [], nor: [], idx: []}; bufs.set(ck, b); }
       const jitter = (((Math.round(x) * 73856093) ^ (Math.round(y) * 19349663) ^ (Math.round(z) * 83492791)) >>> 0) % 1000 / 1000 * 0.08 - 0.04;
       for (const fc of FACES) {
-        if (kind !== 'clear' && solid.has(key(x + fc.n[0], y + fc.n[1], z + fc.n[2]))) continue;       // hidden face
-        if (kind === 'clear' && fc.n[1] < 0) continue;
+        if (kind !== 'clear' && kind !== 'ghost' && solid.has(key(x + fc.n[0], y + fc.n[1], z + fc.n[2]))) continue;       // hidden face
+        if ((kind === 'clear' || kind === 'ghost') && fc.n[1] < 0) continue;
+        if (kind === 'ghost' && fc.n[1] === 0) continue;
         const s = kind === 'glow' || kind === 'water' ? 1 : fc.shade;
         col.copy(base).offsetHSL(0, 0, jitter).multiplyScalar(s);
         const v0 = b.pos.length / 3;
