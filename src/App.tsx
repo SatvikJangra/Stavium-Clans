@@ -106,18 +106,23 @@ const DayNight: React.FC<{controls: React.RefObject<any>; hemi: React.RefObject<
 type Fly = {pos: THREE.Vector3; target: THREE.Vector3; t0: number} | null;
 const CameraFlight: React.FC<{fly: Fly; controls: React.RefObject<any>}> = ({fly, controls}) => {
   const {camera, clock} = useThree();
-  const from = useRef<{p: THREE.Vector3; t: THREE.Vector3; fly: Fly} | null>(null);
+  const from = useRef<{p: THREE.Vector3; t: THREE.Vector3; fly: Fly; done: boolean} | null>(null);
+  // a finger/mouse on the map ends the flight at once, so the user can move freely
+  useEffect(() => { const c = controls.current; if (!c) return; const stop = () => { if (from.current) from.current.done = true; };
+    c.addEventListener('start', stop); return () => c.removeEventListener('start', stop); });
   useFrame(() => {
     if (!fly || !controls.current) return;
     if (!from.current || from.current.fly !== fly) {                  // start this flight from wherever the camera is now
-      from.current = {p: camera.position.clone(), t: controls.current.target.clone(), fly};
+      from.current = {p: camera.position.clone(), t: controls.current.target.clone(), fly, done: false};
       fly.t0 = clock.elapsedTime;
     }
+    if (from.current.done) return;                                     // flight finished: hand the camera back to the controls
     const k = Math.min(1, (clock.elapsedTime - fly.t0) / 1.6), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
     const lift = Math.sin(k * Math.PI) * 40;
     camera.position.lerpVectors(from.current.p, fly.pos, e); camera.position.y += lift;
     controls.current.target.lerpVectors(from.current.t, fly.target, e);
     controls.current.update();
+    if (k >= 1) from.current.done = true;
   });
   return null;
 };
@@ -257,7 +262,7 @@ export const App: React.FC = () => {
       {!selected && <a href={IG} target="_blank" rel="noreferrer" style={{position: 'absolute', zIndex: 200, bottom: 16, left: '50%', transform: 'translateX(-50%)', textDecoration: 'none',
         background: 'linear-gradient(90deg,#f58529,#dd2a7b,#8134af)', color: '#fff', fontWeight: 800, padding: '12px 20px', borderRadius: 30, boxShadow: '0 6px 20px rgba(0,0,0,0.25)', whiteSpace: 'nowrap'}}>
         Follow @stavium.ai → apna ghar banwao</a>}
-      {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(30 + 40, 46, -222 + 95), target: new THREE.Vector3(30, 22, -222), t0: t}); }}
+      {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(6, 50, -124), target: new THREE.Vector3(30, 27, -222), t0: t}); }}
         style={{position: 'absolute', right: 12, bottom: selected ? 104 : 80, zIndex: 200, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
           background: 'rgba(15,20,30,0.8)', color: '#ffd23d'}}>🏰 Kila</button>}
       {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(110, 120, 150), target: new THREE.Vector3(0, 0, 0), t0: t}); }}
