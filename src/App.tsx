@@ -10,7 +10,7 @@ import {startAudio, audioRunning, setDark as audioDark, toggleMute, isMuted, onM
 // Data comes from public/village.json (exported from the reel project with `npm run export`).
 
 type Home = {name: string; day: number; p: [number, number, number]; special?: string};
-type Village = {updated: string; day: number; blocks: Record<string, number[]>; homes: Home[]; actors?: Actors; palace: number[]; castle: number[]; radius: number};
+type Village = {updated: string; day: number; blocks: Record<string, number[]>; homes: Home[]; actors?: Actors; palace: number[]; castle: number[]; radius: number; himlok?: {palace: number[]; lake: number[]}};
 
 const WATER = new Set(['#4fb3e3', '#6fc8f5']);
 const GLOW = new Set(['#ffd77a']);
@@ -175,6 +175,8 @@ export const App: React.FC = () => {
   const [dark, setDark] = useState(0);
   const clockRef = useRef<THREE.Clock | null>(null);
   useEffect(() => { fetch('/village.json').then((r) => r.json()).then(setV); }, []);
+  const [ice, setIce] = useState<Village | null>(null);
+  useEffect(() => { if (!v) return; const id = setTimeout(() => fetch('/himlok.json').then((r) => r.json()).then((j) => setIce({...v, blocks: j.blocks})).catch(() => {}), 900); return () => clearTimeout(id); }, [v]);
   const homes = v?.homes ?? [];
   const matches = useMemo(() => {
     const s = q.trim().replace(/^@/, '').toLowerCase();
@@ -204,17 +206,18 @@ export const App: React.FC = () => {
   }, []);
   return (
     <div style={{position: 'fixed', inset: 0}}>
-      <Canvas dpr={lite ? [1, 1.25] : [1, 1.5]} gl={{antialias: !lite, powerPreference: 'high-performance'}} camera={{position: [110, 120, 150], fov: 50, near: 0.5, far: 1400}}
+      <Canvas dpr={lite ? [1, 1.25] : [1, 1.5]} gl={{antialias: !lite, powerPreference: 'high-performance'}} camera={{position: [110, 120, 150], fov: 50, near: 0.5, far: 2400}}
         onCreated={({gl, clock}) => { gl.setClearColor('#cfe8f7'); clockRef.current = clock; }}>
-        <fog attach="fog" args={['#cfe8f7', 220, 560]} />
+        <fog attach="fog" args={['#cfe8f7', 260, 760]} />
         <hemisphereLight ref={hemi} args={['#ffffff', '#8aa070', 1.25]} />
         <directionalLight ref={sun} position={[-80, 140, 60]} intensity={0.9} color="#fff1dc" />
         {/* open meadow outside the village; inside, the voxel ground itself (so kartik's underground room shows through its glass) */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.45, 0]}><ringGeometry args={[(v?.radius ?? 150) - 0.5, 1400, 96]} /><meshLambertMaterial color="#6bb444" /></mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.45, 0]}><ringGeometry args={[(v?.radius ?? 150) - 0.5, 2200, 96]} /><meshLambertMaterial color="#6bb444" /></mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -6, 0]}><circleGeometry args={[(v?.radius ?? 150) + 2, 64]} /><meshLambertMaterial color="#3f7a2a" /></mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[28, 1.52, 17]} scale={[1.2, 1, 1]} material={LAKE}><circleGeometry args={[7.2, 40]} /></mesh>
         <DayNight controls={controls} hemi={hemi} sun={sun} onDark={setDark} />
         {village && !DBG.includes('v') && <VillageMesh v={village} />}
+        {ice && !DBG.includes('v') && <VillageMesh v={ice} />}
         <Clouds />
         {v?.actors && !DBG.includes('a') && <><Cast a={v.actors} /><Beam p={v.actors.beam} /><NightSky castle={[30, 0, -222]} /></>}
         {v && !DBG.includes('t') && <Tags homes={homes} selected={sel} onPick={goTo} controls={controls} />}
@@ -265,13 +268,16 @@ export const App: React.FC = () => {
       {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(6, 50, -124), target: new THREE.Vector3(30, 27, -222), t0: t}); }}
         style={{position: 'absolute', right: 12, bottom: selected ? 104 : 80, zIndex: 200, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
           background: 'rgba(15,20,30,0.8)', color: '#ffd23d'}}>🏰 Kila</button>}
+      {v?.himlok && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); const L = v.himlok!.lake; setFly({pos: new THREE.Vector3(L[0] - 115, 90, L[2] + 60), target: new THREE.Vector3(L[0] + 30, 20, L[2]), t0: t}); }}
+        style={{position: 'absolute', right: 12, bottom: selected ? 154 : 130, zIndex: 200, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
+          background: 'rgba(15,30,50,0.85)', color: '#bff2ff'}}>❄️ Himlok</button>}
       {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(110, 120, 150), target: new THREE.Vector3(0, 0, 0), t0: t}); }}
         style={{position: 'absolute', left: 12, bottom: selected ? 104 : 80, zIndex: 200, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
           background: 'rgba(15,20,30,0.8)', color: '#fff'}}>🏡 Gaon</button>}
       {dark > 0.6 && <div style={{position: 'absolute', top: '42%', width: '100%', textAlign: 'center', pointerEvents: 'none', color: '#ffd9a0', fontWeight: 900, fontSize: 18,
         textShadow: '0 2px 10px #000', opacity: Math.min(1, (dark - 0.6) * 3)}}>🔒 Andar kya hai… jaldi pata chalega</div>}
       <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} aria-label={mute ? 'Sound on' : 'Sound off'}
-        style={{position: 'absolute', right: 12, bottom: selected ? 154 : 130, zIndex: 200, width: 44, height: 44, borderRadius: 22, border: 'none', cursor: 'pointer', fontSize: 20, background: 'rgba(15,20,30,0.78)', color: '#fff'}}>{mute ? '🔇' : '🔊'}</button>
+        style={{position: 'absolute', right: 12, bottom: selected ? 204 : 180, zIndex: 200, width: 44, height: 44, borderRadius: 22, border: 'none', cursor: 'pointer', fontSize: 20, background: 'rgba(15,20,30,0.78)', color: '#fff'}}>{mute ? '🔇' : '🔊'}</button>
       {!v && <div style={{position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontWeight: 800, color: '#2a4a60'}}>Gaon load ho raha hai… 🌲</div>}
     </div>
   );

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 
 export const TRANSPARENT = new Set(['#6fc8f5', '#e8f6ff', '#bfe8ff']);
 export const WATER = new Set(['#4fb3e3']);
-export const GLOW = new Set(['#ffd77a']);
+export const GLOW = new Set(['#ffd77a', '#8fe3ff', '#ff3b30', '#b48cff']);
 const CHUNK = 48;
 
 const FACES: {n: [number, number, number]; shade: number; corners: [number, number, number][]}[] = [
