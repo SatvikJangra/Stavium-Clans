@@ -8,16 +8,28 @@ import {day6Blocks, iceExtraBlocks, HOMES6} from '../../follower-forest/src/Day6
 import {day7Blocks, spyHutBlocks, HOMES7, HOMES7_ICE} from '../../follower-forest/src/Day7Builds';
 import {day8Blocks, HOMES8} from '../../follower-forest/src/Day8Builds';
 import level2 from '../../follower-forest/src/level2.json';
+import {day9Blocks, ice9Blocks, HOMES9} from '../../follower-forest/src/Day9Builds';
+// the village wall (same as Film4's WALL: a stone ring just outside the village, battlements, 12 towers with lanterns)
+const WALL: Record<string, number[][]> = (() => {
+  const o: Record<string, number[][]> = {}; const add = (c: string, p: number[]) => (o[c] ||= []).push(p); const R = NW4 + 4;
+  const n = Math.round(2 * Math.PI * R);
+  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2, x = Math.round(Math.cos(a) * R), z = Math.round(Math.sin(a) * R);
+    if (x > 0 && Math.abs(z) <= 4) continue;   // gate for the long road
+    for (let y = 1; y <= 8; y++) { if (y === 8 && i % 2) continue; add(y % 3 === 0 ? '#9a9a96' : '#b0aca4', [x, y, z]); } }
+  for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2, cx = Math.round(Math.cos(a) * R), cz = Math.round(Math.sin(a) * R);
+    for (let y = 1; y <= 13; y++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) if (Math.abs(dx) === 2 || Math.abs(dz) === 2) add(y > 11 ? '#86857f' : '#b0aca4', [cx + dx, y, cz + dz]);
+    add('#ffd77a', [cx, 14, cz]); }
+  return o; })();
 const v = villageSnapshot();
 const r = (n: number) => Math.round(n * 10) / 10;
 const blocks: Record<string, number[]> = {};
 let count = 0;
 const addAll = (src: Record<string, number[][]>) => { for (const [c, ps] of Object.entries(src)) { const arr = (blocks[c] ||= []); for (const p of ps) arr.push(r(p[0]), r(p[1]), r(p[2])); count += ps.length; } };
-addAll(v.blocks); addAll(RING4()); addAll(day4Blocks()); addAll(level2 as unknown as Record<string, number[][]>);   // Day 9: Level 2 flags + lanterns
+addAll(v.blocks); addAll(RING4()); addAll(day4Blocks()); addAll(level2 as unknown as Record<string, number[][]>); addAll(WALL);   // the village wall   // Day 9: Level 2 flags + lanterns
 // Himlok + the long road: keep only blocks that can be seen (drop ones boxed in on all six sides) and trim the far side ranges
 const ice: Record<string, number[][]> = {};
 const merge = (src: Record<string, number[][]>, crop = true) => { for (const [c, ps] of Object.entries(src)) { const a = (ice[c] ||= []); for (const p of ps) if (!crop || Math.abs(p[2]) <= 175) a.push(p); } };
-merge(getIce().blocks); merge(day6Blocks()); merge(iceExtraBlocks()); merge(day7Blocks(), false); merge(day8Blocks(), false);
+merge(getIce().blocks); merge(day6Blocks()); merge(iceExtraBlocks()); merge(day7Blocks(), false); merge(day8Blocks(), false); merge(day9Blocks(), false); merge(ice9Blocks(), false);
 const occ = new Set<string>(); const TR = new Set(['#6fc8f5', '#e8f6ff', '#bfe8ff', '#4fb3e3']);
 for (const [c, ps] of Object.entries(ice)) if (!TR.has(c)) for (const p of ps) occ.add(p[0] + ',' + p[1] + ',' + p[2]);
 let culled = 0;
@@ -36,7 +48,7 @@ for (const h of HOMES4) {
   if (old) { if (h.special) { old.p = h.p.map(r); old.special = (h.label ?? '').replace(/^\S+\s/, ''); moved++; } continue; }
   const n: H = {name: h.name, day: 4, p: h.p.map(r), ...(h.label ? {special: h.label.replace(/^\S+\s/, '')} : {})}; homes.push(n); byName.set(n.name, n); added++;
 }
-for (const h of [...HOMES6, ...HOMES7.map((x) => ({...x, day7: true})), ...HOMES7_ICE.map((x) => ({...x, day7: true})), ...HOMES8.map((x) => ({...x, dayN: 8}))] as any[]) {
+for (const h of [...HOMES6, ...HOMES7.map((x) => ({...x, day7: true})), ...HOMES7_ICE.map((x) => ({...x, day7: true})), ...HOMES8.map((x) => ({...x, dayN: 8})), ...HOMES9.map((x) => ({...x, dayN: 9}))] as any[]) {
   const old = byName.get(h.name); const sp = h.label ? h.label.replace(/^\S+\s/, '') : undefined;
   if (old) { if (h.special) { old.p = h.p.map(r); old.special = sp; moved++; } continue; }
   const n: H = {name: h.name, day: h.dayN ?? (h.day7 ? 7 : 6), p: h.p.map(r), ...(sp ? {special: sp} : {})}; homes.push(n); byName.set(n.name, n); added++;
