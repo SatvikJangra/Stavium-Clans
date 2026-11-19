@@ -10,6 +10,8 @@ import {startAudio, audioRunning, setDark as audioDark, toggleMute, isMuted, onM
 // Data comes from public/village.json (exported from the reel project with `npm run export`).
 
 type Home = {name: string; day: number; p: [number, number, number]; special?: string};
+type Clan = {pos: number[]; rot: number; ground: string; radius: number; blocks: Record<string, number[]>; name: string; emoji: string; col: string};
+type Clans = {day: number; clans: Record<string, Clan>; world: Record<string, number[]>; homes: Home[]; egg: {p: number[]; goal: number}};
 type Village = {updated: string; day: number; blocks: Record<string, number[]>; homes: Home[]; actors?: Actors; palace: number[]; castle: number[]; radius: number; himlok?: {palace: number[]; lake: number[]}};
 
 const WATER = new Set(['#4fb3e3', '#6fc8f5']);
@@ -102,6 +104,30 @@ const DayNight: React.FC<{controls: React.RefObject<any>; hemi: React.RefObject<
   return null;
 };
 
+const FogFollow: React.FC<{controls: React.RefObject<any>}> = ({controls}) => {
+  const {scene, camera} = useThree();
+  useFrame(() => { const f = scene.fog as THREE.Fog | null; if (!f || !controls.current) return; const d = camera.position.distanceTo(controls.current.target);
+    f.near = Math.max(260, d * 0.9); f.far = Math.max(760, d * 2.4); });
+  return null;
+};
+// the clan lands: each compound is drawn in its own frame and placed like in the reel; the dragon egg pulses in the Yuddh Maidan
+const ClanLands: React.FC<{c: Clans}> = ({c}) => {
+  const lands = useMemo(() => Object.entries(c.clans).map(([k, x]) => ({k, x, v: {blocks: x.blocks} as unknown as Village})), [c]);
+  const world = useMemo(() => ({blocks: c.world} as unknown as Village), [c]);
+  const glow = useRef<THREE.Mesh>(null);
+  useFrame(({clock}) => { if (glow.current) { const m = glow.current.material as THREE.MeshBasicMaterial; m.opacity = 0.16 + 0.1 * Math.sin(clock.elapsedTime * 2.5); } });
+  return <>
+    {lands.map(({k, x, v}) => <group key={k} position={x.pos as [number, number, number]} rotation={[0, x.rot, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.56, 0]}><circleGeometry args={[x.radius + 0.5, 72]} /><meshLambertMaterial color={x.ground} /></mesh>
+      <VillageMesh v={v} /></group>)}
+    <VillageMesh v={world} />
+    <mesh ref={glow} position={c.egg.p as [number, number, number]}><sphereGeometry args={[26, 24, 18]} /><meshBasicMaterial color="#b48cff" transparent opacity={0.2} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
+    <Html position={[c.egg.p[0], c.egg.p[1] + 32, c.egg.p[2]]} center distanceFactor={260} zIndexRange={[50, 0]}>
+      <div style={{background: 'rgba(15,20,30,0.85)', color: '#ffd23d', fontWeight: 900, padding: '6px 12px', borderRadius: 12, whiteSpace: 'nowrap', fontSize: 15, border: '2px solid #b48cff'}}>🥚 {c.egg.goal.toLocaleString('en-US')} followers pe phootega 🐉</div></Html>
+    {lands.map(({k, x}) => <Html key={'n' + k} position={[x.pos[0], 130, x.pos[2]]} center distanceFactor={900} zIndexRange={[50, 0]}>
+      <div style={{background: 'rgba(15,20,30,0.85)', color: x.col, fontWeight: 900, padding: '6px 14px', borderRadius: 14, whiteSpace: 'nowrap', fontSize: 18, border: `2px solid ${x.col}`}}>{x.emoji} {x.name} CLAN</div></Html>)}
+  </>;
+};
 // smooth camera flight to a target house
 type Fly = {pos: THREE.Vector3; target: THREE.Vector3; t0: number} | null;
 const CameraFlight: React.FC<{fly: Fly; controls: React.RefObject<any>}> = ({fly, controls}) => {
@@ -136,7 +162,7 @@ const Tags: React.FC<{homes: Home[]; selected: string | null; onPick: (h: Home) 
     if (clock.elapsedTime - last.current < 0.5 || !controls.current) return;
     last.current = clock.elapsedTime;
     const tg: THREE.Vector3 = controls.current.target, dist = camera.position.distanceTo(tg);
-    const r = Math.max(30, dist * 0.5), max = lite ? 10 : 18;
+    const r = Math.max(30, dist * 0.5), max = dist > 520 ? 0 : lite ? 10 : 18;   // the whole-map view stays clean
     const list = homes.map((h) => ({h, d: Math.hypot(h.p[0] - tg.x, h.p[2] - tg.z)})).filter((x) => x.d < r).sort((a, b) => a.d - b.d).slice(0, max).map((x) => x.h);
     const sel = homes.find((h) => h.name === selected);
     if (sel && !list.includes(sel)) list.push(sel);
@@ -176,8 +202,10 @@ export const App: React.FC = () => {
   const clockRef = useRef<THREE.Clock | null>(null);
   useEffect(() => { fetch('/village.json').then((r) => r.json()).then(setV); }, []);
   const [ice, setIce] = useState<Village | null>(null);
+  const [clans, setClans] = useState<Clans | null>(null);
+  useEffect(() => { fetch('/clans.json').then((r) => r.json()).then(setClans).catch(() => {}); }, []);
   useEffect(() => { if (!v) return; const id = setTimeout(() => fetch('/himlok.json').then((r) => r.json()).then((j) => setIce({...v, blocks: j.blocks})).catch(() => {}), 900); return () => clearTimeout(id); }, [v]);
-  const homes = v?.homes ?? [];
+  const homes = useMemo(() => { const base = v?.homes ?? []; if (!clans) return base; const moved = new Set(clans.homes.map((h) => h.name)); return [...base.filter((h) => !moved.has(h.name)), ...clans.homes]; }, [v, clans]);
   const matches = useMemo(() => {
     const s = q.trim().replace(/^@/, '').toLowerCase();
     return s.length < 2 ? [] : homes.filter((h) => h.name.toLowerCase().includes(s)).slice(0, 6);
@@ -193,7 +221,8 @@ export const App: React.FC = () => {
   };
   const selected = homes.find((h) => h.name === sel);
   // deep link: site.com/?u=username flies straight to that house
-  useEffect(() => { const u = new URLSearchParams(location.search).get('u'); if (u && v) { const h = v.homes.find((x) => x.name.toLowerCase() === u.toLowerCase()); if (h) setTimeout(() => goTo(h), 600); } }, [v]);
+  const linked = useRef(false);
+  useEffect(() => { const u = new URLSearchParams(location.search).get('u'); if (u && v && !linked.current) { const h = homes.find((x) => x.name.toLowerCase() === u.toLowerCase()); if (h) { linked.current = true; setTimeout(() => goTo(h), 2500); } } }, [v, homes]);
   const village = v;
   const [mute, setMute] = useState(isMuted());
   useEffect(() => {
@@ -206,23 +235,25 @@ export const App: React.FC = () => {
   }, []);
   return (
     <div style={{position: 'fixed', inset: 0}}>
-      <Canvas dpr={lite ? [1, 1.25] : [1, 1.5]} gl={{antialias: !lite, powerPreference: 'high-performance'}} camera={{position: [110, 120, 150], fov: 50, near: 0.5, far: 2400}}
+      <Canvas dpr={lite ? [1, 1.25] : [1, 1.5]} gl={{antialias: !lite, powerPreference: 'high-performance'}} camera={{position: [110, 120, 150], fov: 50, near: 0.5, far: 4000}}
         onCreated={({gl, clock}) => { gl.setClearColor('#cfe8f7'); clockRef.current = clock; }}>
         <fog attach="fog" args={['#cfe8f7', 260, 760]} />
         <hemisphereLight ref={hemi} args={['#ffffff', '#8aa070', 1.25]} />
         <directionalLight ref={sun} position={[-80, 140, 60]} intensity={0.9} color="#fff1dc" />
         {/* open meadow outside the village; inside, the voxel ground itself (so kartik's underground room shows through its glass) */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.45, 0]}><ringGeometry args={[(v?.radius ?? 150) - 0.5, 2200, 96]} /><meshLambertMaterial color="#6bb444" /></mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.45, 0]}><ringGeometry args={[(v?.radius ?? 150) - 0.5, 3000, 96]} /><meshLambertMaterial color="#6bb444" /></mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -6, 0]}><circleGeometry args={[(v?.radius ?? 150) + 2, 64]} /><meshLambertMaterial color="#3f7a2a" /></mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[28, 1.52, 17]} scale={[1.2, 1, 1]} material={LAKE}><circleGeometry args={[7.2, 40]} /></mesh>
         <DayNight controls={controls} hemi={hemi} sun={sun} onDark={setDark} />
         {village && !DBG.includes('v') && <VillageMesh v={village} />}
         {ice && !DBG.includes('v') && <VillageMesh v={ice} />}
+        {clans && v && !DBG.includes('c') && <ClanLands c={clans} />}
+        <FogFollow controls={controls} />
         <Clouds />
         {v?.actors && !DBG.includes('a') && <><Cast a={v.actors} /><Beam p={v.actors.beam} /><NightSky castle={[30, 0, -222]} /></>}
         {v && !DBG.includes('t') && <Tags homes={homes} selected={sel} onPick={goTo} controls={controls} />}
         <Marker home={selected} />
-        <MapControls ref={controls} target={[0, 0, 0]} enableDamping dampingFactor={0.08} minDistance={14} maxDistance={420} maxPolarAngle={Math.PI / 2.25} screenSpacePanning={false} />
+        <MapControls ref={controls} target={[0, 0, 0]} enableDamping dampingFactor={0.08} minDistance={14} maxDistance={1800} maxPolarAngle={Math.PI / 2.25} screenSpacePanning={false} />
         <CameraFlight fly={fly} controls={controls} />
       </Canvas>
 
@@ -230,7 +261,7 @@ export const App: React.FC = () => {
       <div style={{position: 'absolute', top: 12, left: 12, right: 12, zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, pointerEvents: 'none'}}>
         <div style={{pointerEvents: 'auto', background: 'rgba(15,20,30,0.78)', color: '#fff', borderRadius: 18, padding: '10px 16px', textAlign: 'center', backdropFilter: 'blur(6px)'}}>
           <div style={{fontWeight: 900, fontSize: 18, letterSpacing: 0.3}}>🏡 Stavium Follower Forest</div>
-          <div style={{fontSize: 13, opacity: 0.85, marginTop: 2}}>Day {v?.day ?? '…'} · {homes.length} ghar · har follower ka ek ghar</div>
+          <div style={{fontSize: 13, opacity: 0.85, marginTop: 2}}>Day {clans?.day ?? v?.day ?? '…'} · {homes.length} ghar · ⚔️ 3 clan · 🥚 dragon ka anda</div>
         </div>
         <div style={{pointerEvents: 'auto', width: 'min(440px, 100%)', position: 'relative'}}>
           <form onSubmit={(e) => { e.preventDefault(); submit(); }} style={{display: 'flex', gap: 6}}>
@@ -274,6 +305,12 @@ export const App: React.FC = () => {
       {v && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(110, 120, 150), target: new THREE.Vector3(0, 0, 0), t0: t}); }}
         style={{position: 'absolute', left: 12, bottom: selected ? 104 : 80, zIndex: 200, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
           background: 'rgba(15,20,30,0.8)', color: '#fff'}}>🏡 Gaon</button>}
+      {clans && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); setFly({pos: new THREE.Vector3(-840, 1380, 960), target: new THREE.Vector3(-830, 0, 70), t0: t}); }}
+        style={{position: 'absolute', left: 12, bottom: selected ? 154 : 130, zIndex: 200, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
+          background: 'rgba(40,15,15,0.85)', color: '#ff8a4d'}}>⚔️ Clans</button>}
+      {clans && <button onClick={() => { const t = clockRef.current?.elapsedTime ?? 0; setSel(null); setQ(''); whoosh(); const e = clans.egg.p; setFly({pos: new THREE.Vector3(e[0] + 120, 70, e[2] + 80), target: new THREE.Vector3(e[0], 18, e[2]), t0: t}); }}
+        style={{position: 'absolute', left: 12, bottom: selected ? 204 : 180, zIndex: 200, fontWeight: 800, fontSize: 14, padding: '10px 14px', borderRadius: 14, border: 'none', cursor: 'pointer',
+          background: 'rgba(30,15,45,0.85)', color: '#d9c2ff'}}>🥚 Anda</button>}
       {dark > 0.6 && <div style={{position: 'absolute', top: '42%', width: '100%', textAlign: 'center', pointerEvents: 'none', color: '#ffd9a0', fontWeight: 900, fontSize: 18,
         textShadow: '0 2px 10px #000', opacity: Math.min(1, (dark - 0.6) * 3)}}>🔒 Andar kya hai… jaldi pata chalega</div>}
       <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} aria-label={mute ? 'Sound on' : 'Sound off'}
