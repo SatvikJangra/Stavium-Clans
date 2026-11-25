@@ -59,5 +59,7 @@ export function Anim({sleepers, walkers, strollers, MB}: {sleepers: {p: V; ph: n
     <mesh position={MB}><sphereGeometry args={[7.25, 48, 32]} /><meshBasicMaterial color="#ffd77a" transparent opacity={0.07} depthWrite={false} side={1} /></mesh>
     <mesh position={MB} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[7.05, 0.12, 8, 64]} /><meshBasicMaterial color="#ffd23f" toneMapped={false} /></mesh>
     <pointLight position={MB} intensity={900} distance={60} color="#ffd27a" />
+    <mesh position={[0, 21.2, -23.2]}><boxGeometry args={[112, 13, 0.15]} /><meshPhongMaterial color="#bfe6ff" transparent opacity={0.18} shininess={160} specular="#ffffff" depthWrite={false} /></mesh>
+    <pointLight position={[0, 25, -30]} intensity={500} distance={60} color="#ffe2b0" />
   </>;
 }

@@ -69,6 +69,16 @@ export function build(d: Data) {
   for (let c = 5; c < COLS; c += 5) { const x = bunkPos(c)[0] - (BX + GAPX) / 2; boxes.push({p: [x, 0.02, depth / 2 - 4], s: [GAPX - 3, 0.04, depth + 40], c: '#1c2027'}); boxes.push({p: [x, 0.05, depth / 2 - 4], s: [0.18, 0.04, depth + 40], c: '#2fe0c0', g: true}); }
   for (let r = 4; r < rows; r += 4) { const z = bunkPos(r * COLS)[2] - (BZ + GAPZ) / 2; boxes.push({p: [0, 0.03, z], s: [WX + 30, 0.04, GAPZ - 3], c: '#1c2027'}); boxes.push({p: [0, 0.06, z], s: [WX + 30, 0.04, 0.18], c: '#2fe0c0', g: true}); }
   for (const sx of [-1, 1]) boxes.push({p: [sx * (WX / 2 + 18), 4, depth / 2 - 4], s: [1, 8, depth + 50], c: '#1a1e26'});
+  // front + back walls (door in the middle), all four sides closed
+  for (const z of [-12, depth + 10]) for (const sx of [-1, 1]) boxes.push({p: [sx * (WX / 4 + 5.5), 4, z], s: [WX / 2 + 25, 8, 1], c: '#1a1e26'});
+  for (const z of [-12, depth + 10]) boxes.push({p: [0, 8.2, z], s: [WX + 37, 0.3, 1.1], c: '#2fe0c0', g: true});
+  for (const sx of [-1, 1]) boxes.push({p: [sx * (WX / 2 + 18), 8.2, depth / 2 - 1], s: [1.1, 0.3, depth + 22], c: sx > 0 ? PINK : '#2fe0c0', g: true});
+  // block partitions: low walls on the long sides of every 5 x 4 block, doorways at the ends
+  { const nbr = Math.ceil(rows / 4);
+    for (let bc = 0; bc < COLS / 5; bc++) for (let br = 0; br < nbr; br++) {
+      const a = bunkPos(br * 4 * COLS + bc * 5), z0 = a[2] - BZ / 2, z1 = bunkPos(Math.min(rows - 1, br * 4 + 3) * COLS)[2] + BZ / 2, len = z1 - z0 - 5;
+      for (const ex of [a[0] - BX / 2 - 1.2, a[0] + 4 * BX + BX / 2 + 1.2]) { boxes.push({p: [ex, 1.3, (z0 + z1) / 2], s: [0.35, 2.6, len], c: '#39414d'}); boxes.push({p: [ex, 2.65, (z0 + z1) / 2], s: [0.4, 0.1, len], c: '#2fe0c0', g: true}); }
+    } }
   for (let z = -10; z < depth + 20; z += 16) for (const sx of [-1, 1]) boxes.push({p: [sx * (WX / 2 + 17.3), 5, z], s: [0.4, 4, 2], c: sx > 0 ? PINK : '#2fe0c0', g: true});
   // ceiling lamp strips over the aisles
   for (let r = 0; r < rows; r += 2) boxes.push({p: [0, 11, bunkPos(r * COLS)[2] + BZ / 2], s: [WX + 10, 0.08, 0.14], c: '#6f8898', g: true});
@@ -107,18 +117,19 @@ export function build(d: Data) {
     anchors.push({key: 'c' + n, p: [p[0], p[1] + 2.6, p[2] + 1.25], text: `❤️ @${a} + @${b}`, col: '#ff4d8d', kind: 'player'}); }
   // crew wing
   for (let c = 0; c < CORR; c++) { const x = CX0 - c * 30;
-    boxes.push({p: [x, -0.04, PER * RZ / 2 - 3], s: [22, 0.1, PER * RZ + 10], c: '#2a1620'}); boxes.push({p: [x, -0.02, PER * RZ / 2 - 3], s: [4, 0.1, PER * RZ + 10], c: '#5a1a36'});
+    boxes.push({p: [x, -0.04, PER * RZ / 2 - 3], s: [22, 0.1, PER * RZ + 10], c: '#3a2630'}); boxes.push({p: [x, -0.02, PER * RZ / 2 - 3], s: [4, 0.1, PER * RZ + 10], c: '#5a2440'});
     for (const sx of [-1, 1]) boxes.push({p: [x + sx * 2.2, 0.06, PER * RZ / 2 - 3], s: [0.15, 0.05, PER * RZ + 10], c: PINK, g: true});
-    boxes.push({p: [x, 7, PER * RZ / 2 - 3], s: [0.3, 0.1, PER * RZ + 10], c: '#ffc0dc', g: true}); }
+    for (let z = 0; z < PER * RZ; z += 12) boxes.push({p: [x, 9, z], s: [3, 0.15, 0.6], c: '#ffc0dc', g: true}); }
   for (let c = 0; c < CORR; c++) for (let k = 0; k < 8; k++) walkers.push({x: CX0 - c * 30 + (k % 2 ? 1.1 : -1.1), z0: hh(c * 8 + k, 1) * PER * RZ, len: PER * RZ - 6, sp: 1.6 + hh(k, 2), mask: (c + k) % 3, ph: hh(c, k) * 50});
   const cm = new Map<number, [string, string]>(); d.crew.forEach(([n, u, st]) => cm.set(n, [u, st]));
   for (let n = 1; n <= d.max.crew; n++) {
     const {p, side} = roomPos(n), [u, st] = cm.get(n) ?? ['', 'empty'], taken = st === 'alive';
-    boxes.push({p: [p[0] + side * 4, 2.2, p[2]], s: [0.3, 4.4, RZ - 0.4], c: '#7a2a4a'});
-    boxes.push({p: [p[0], 1.6, p[2] + RZ / 2 - 0.1], s: [8, 3.2, 0.25], c: '#a03060'});
+    boxes.push({p: [p[0] + side * 4, 2.2, p[2]], s: [0.3, 4.4, RZ - 0.4], c: '#6a4a5c'});
+    boxes.push({p: [p[0], 1.6, p[2] + RZ / 2 - 0.1], s: [8, 3.2, 0.25], c: '#7a4a62'});
     boxes.push({p: [p[0] - side * 4, 5.6, p[2]], s: [0.35, 0.8, RZ - 0.4], c: taken ? PINK : '#4a2a38', g: taken});
     boxes.push({p: [p[0] + side * 2.2, 0.6, p[2]], s: [2.4, 0.5, 4.2], c: taken ? '#f0a0c0' : '#5a4a52'});
-    if (taken) person(boxes, [p[0] - side * 1.2, 0, p[2]], -side * Math.PI / 2, {shirt: PINK, pants: PINK2, mask: n % 3});
+    if (taken && hh(n, 21) > 0.4) person(boxes, [p[0] - side * 1.2, 0, p[2]], -side * Math.PI / 2, {shirt: PINK, pants: PINK2, mask: n % 3});
+    else if (taken) walkers.push({x: CX0 - Math.floor((n - 1) / (PER * 2)) * 30 + (hh(n, 22) - 0.5) * 3.2, z0: hh(n, 23) * PER * RZ, len: PER * RZ - 6, sp: 1.2 + hh(n, 24) * 1.2, mask: n % 3, ph: hh(n, 25) * 80});
     const id = 'C' + String(n).padStart(3, '0');
     if (u && st !== 'empty') where.set(u.toLowerCase(), {p: [p[0], 2, p[2]], label: `🔺 ${id} @${u}`, role: 'CREW', num: id, status: taken ? 'CREW ✅ · apna personal room' : 'ROOM KHAALI: follow wapas karo'});
     anchors.push({key: 'cr' + n, p: [p[0] - side * 1.2, 5.2, p[2]], text: u && taken ? `${id} @${u}` : `${id} KHAALI`, col: taken ? '#ff4f9a' : '#8a8f98', kind: taken ? 'crew' : 'empty'});
@@ -126,6 +137,12 @@ export function build(d: Data) {
   // VIP balcony
   const nT = 2; for (let t = 0; t < nT; t++) boxes.push({p: [0, 15.2 + t * 3.4, -26 - t * 4.6], s: [112, 0.6, 4.6], c: '#3a1018'});
   boxes.push({p: [0, 14.6, -23.4], s: [112, 1.4, 0.3], c: GOLD, g: true});
+  boxes.push({p: [0, 21, -38], s: [114, 14, 0.6], c: '#2a0a10'}); boxes.push({p: [0, 28.2, -30.5], s: [114, 0.5, 15.6], c: '#1e070c'});
+  for (const sx of [-1, 1]) boxes.push({p: [sx * 57, 21, -30.5], s: [0.6, 14, 15.6], c: '#2a0a10'});
+  for (let k = 0; k <= 14; k++) boxes.push({p: [-56 + k * 8, 21.2, -23.2], s: [0.3, 13, 0.3], c: GOLD, g: true});
+  boxes.push({p: [0, 27.8, -23.2], s: [114, 0.4, 0.4], c: GOLD, g: true});
+  for (let k = 0; k < 7; k++) boxes.push({p: [-48 + k * 16, 27.5, -31], s: [2.2, 0.5, 2.2], c: '#fff0c0', g: true});
+  boxes.push({p: [0, 7.5, -23.4], s: [112, 14, 0.8], c: '#1a1e26'});
   for (let i = 0; i < d.max.vip; i++) { const p = vipPos(i), u = d.vip[i];
     boxes.push({p: [p[0], p[1] + 1.6, p[2] - 1.0], s: [2.6, 3.4, 0.5], c: u ? '#c99a2a' : '#4a3a20'}); boxes.push({p: [p[0], p[1] + 0.6, p[2]], s: [2.6, 0.5, 2.2], c: '#7a1020'});
     if (u) { person(boxes, [p[0], p[1] + 0.2, p[2]], 0, {shirt: '#141418', pants: '#141418', vip: i, sit: true}); where.set(u.toLowerCase(), {...(where.get(u.toLowerCase()) ?? {p: p, num: 'VIP', status: ''}), p, label: `👑 VIP ${String(i + 1).padStart(2, '0')} @${u}`, role: 'VIP 👑', num: `VIP ${String(i + 1).padStart(2, '0')}`, status: 'VIP balcony seat · sone ka mask 🎭'}); }
@@ -147,7 +164,7 @@ export function build(d: Data) {
   boxes.push({p: [0, 9.4, BZ0 - 1.2], s: [1.4, 1.2, 0.5], c: '#ff3b30', g: true});
   anchors.push({key: 'bridge', p: [0, 13, BZ0 - 1], text: `🔒 GLASS BRIDGE · ${d.max.players.toLocaleString('en-IN')} PLAYERS = START`, col: '#9fe8ff', kind: 'vip'});
   if (d.frontman) where.set(d.frontman.toLowerCase(), {p: [0, 16, -40], label: `👑 FRONTMAN @${d.frontman}`, role: 'FRONTMAN', num: 'FRONTMAN', status: 'Sirf ek. 🖤'});
-  const spots = {dorm: {pos: [30, 38, -40] as V, look: [0, 4, depth / 3] as V}, crew: {pos: [CX0 + 9, 16, -14] as V, look: [CX0, 1, 40] as V},
+  const spots = {dorm: {pos: [30, 38, -40] as V, look: [0, 4, depth / 3] as V}, crew: {pos: [CX0 + 1, 6.5, -8] as V, look: [CX0, 2.5, 30] as V},
     vip: {pos: [16, 27, 14] as V, look: [0, 17, -28] as V}, bridge: {pos: [18, 22, BZ0 - 26] as V, look: [0, 8, BZ0 + 10] as V}, money: {pos: [0, 40, depth / 2 - 30] as V, look: MB}};
   return {boxes, anchors, where, spots, depth, sleepers, walkers, strollers, MB};
 }
